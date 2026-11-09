@@ -71,7 +71,7 @@ const WHEEL = [
     }
   },
   {
-    name: "bad", color: "#9fadbd",
+    name: "low", color: "#9fadbd",
     children: {
       "bored": ["indifferent", "apathetic", "flat", "disconnected", "restless", "unmotivated"],
       "busy": ["pressured", "rushed", "stretched thin"],
