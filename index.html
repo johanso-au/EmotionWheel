@@ -101,6 +101,85 @@
     #restart:focus-visible { color: var(--text); border-color: rgba(233, 230, 223, 0.5); outline: none; }
     .fading { opacity: 0; }
 
+    /* View switching */
+    body { padding-bottom: 72px; }
+    main { transition: opacity var(--fade) ease, visibility var(--fade); }
+    body.wheel-open main { opacity: 0; visibility: hidden; }
+    #toggleView {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      z-index: 3;
+      padding: 0.5rem 1rem;
+      background: none;
+      border: 0;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 1.05rem;
+      letter-spacing: 0.14em;
+      cursor: pointer;
+      text-shadow: 0 0 10px var(--bg), 0 0 4px var(--bg), 0 0 2px var(--bg);
+      transition: color 300ms;
+    }
+    #toggleView:hover,
+    #toggleView:focus-visible { color: var(--text); outline: none; }
+
+    /* Wheel view */
+    #wheelView {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      background: radial-gradient(ellipse at 30% 55%, #161a21 0%, var(--bg) 75%);
+      background-color: var(--bg);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--fade) ease, visibility var(--fade);
+    }
+    body.wheel-open #wheelView { opacity: 1; visibility: visible; }
+    #wheelCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: grab;
+    }
+    #wheelCanvas:active { cursor: grabbing; }
+    #wheelCanvas:focus { outline: none; }
+    #wheelText {
+      position: absolute;
+      top: 24px;
+      left: 16px;
+      right: 16px;
+      text-align: center;
+      pointer-events: none;
+      text-shadow: 0 0 14px var(--bg), 0 0 4px var(--bg);
+    }
+    #wheelText.wide { right: 16px; text-align: left; transform: translateY(-50%); }
+    #wheelPhrase {
+      margin: 0;
+      font-weight: 300;
+      font-size: clamp(1.9rem, 5vw, 3.2rem);
+      line-height: 1.15;
+    }
+    #wheelPhrase .feeling { color: var(--c); font-style: italic; font-weight: 400; }
+    #wheelHint {
+      margin: 0.6rem 0 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+      letter-spacing: 0.08em;
+      transition: opacity 1200ms ease;
+    }
+    #wheelHint.gone { opacity: 0; }
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       :root { --fade: 1ms; }
       .word { transform: none; }
@@ -114,6 +193,18 @@
     <button id="restart" type="button">start again</button>
   </main>
 
+  <section id="wheelView" aria-label="Feelings wheel">
+    <canvas id="wheelCanvas" tabindex="0" role="img"
+      aria-label="Feelings wheel. Use the up and down arrow keys to turn it."></canvas>
+    <div id="wheelText">
+      <h2 id="wheelPhrase">I’m feeling…</h2>
+      <p id="wheelHint">drag or scroll to turn the wheel</p>
+    </div>
+    <p id="wheelLive" class="sr-only" aria-live="polite"></p>
+  </section>
+
+  <button id="toggleView" type="button">the wheel</button>
+
   <script src="emotions.js"></script>
   <script>
     (function () {
@@ -126,20 +217,20 @@
       var restart = document.getElementById("restart");
 
       // Turn the data into one uniform tree: { name, color, children: [] }
-      function build(name, color, children) {
-        var node = { name: name, color: color, children: [] };
+      function build(name, color, children, parent) {
+        var node = { name: name, color: color, children: [], parent: parent };
         if (Array.isArray(children)) {
           node.children = children.map(function (c) {
-            return typeof c === "string" ? build(c, color, null) : build(c.name, c.color, c.children);
+            return typeof c === "string" ? build(c, color, null, node) : build(c.name, c.color, c.children, node);
           });
         } else if (children) {
           node.children = Object.keys(children).map(function (k) {
-            return build(k, color, children[k]);
+            return build(k, color, children[k], node);
           });
         }
         return node;
       }
-      var root = build(null, null, WHEEL);
+      var root = build(null, null, WHEEL, null);
 
       var busy = false;
 
@@ -155,6 +246,11 @@
       }
 
       function show(node, moveFocus) {
+        // Share the current path so the wheel view can open on it.
+        var names = [];
+        for (var n = node; n && n.name; n = n.parent) names.unshift(n.name);
+        window.feelingPath = names;
+
         setHeading(node);
         heading.classList.remove("fading");
         choices.textContent = "";
@@ -194,5 +290,6 @@
       show(root, false);
     })();
   </script>
+  <script src="wheel.js"></script>
 </body>
 </html>
