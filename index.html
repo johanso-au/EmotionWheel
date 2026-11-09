@@ -3,10 +3,196 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Emotion Wheel</title>
+  <title>I'm feeling…</title>
+  <meta name="description" content="Narrow down what you're feeling, one word at a time.">
+  <meta name="theme-color" content="#0c0e12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c0e12;
+      --text: #e9e6df;
+      --muted: #8b9099;
+      --fade: 700ms;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      background: radial-gradient(ellipse at 50% 40%, #171b22 0%, var(--bg) 70%);
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    main {
+      width: 100%;
+      max-width: 860px;
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 2.75rem;
+      font-weight: 300;
+      font-size: clamp(2.3rem, 7vw, 3.8rem);
+      line-height: 1.15;
+      letter-spacing: 0.01em;
+      transition: opacity var(--fade) ease;
+    }
+    h1 .feeling {
+      color: var(--c);
+      font-style: italic;
+      font-weight: 400;
+    }
+    #choices {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem 1.9rem;
+      min-height: 7rem;
+    }
+    .word {
+      background: none;
+      border: 0;
+      padding: 0.25rem 0.2rem;
+      font: inherit;
+      font-size: clamp(1.45rem, 4vw, 2.05rem);
+      font-weight: 400;
+      color: var(--c);
+      cursor: pointer;
+      opacity: 0;
+      transform: translateY(8px);
+      transition:
+        opacity var(--fade) ease,
+        transform var(--fade) ease,
+        text-shadow 400ms ease;
+    }
+    .word.in { opacity: 0.82; transform: none; }
+    .word.in:hover,
+    .word.in:focus-visible {
+      opacity: 1;
+      text-shadow: 0 0 22px color-mix(in srgb, var(--c) 55%, transparent);
+      outline: none;
+    }
+    .word.out { opacity: 0; transform: translateY(-6px); pointer-events: none; }
+    #restart {
+      margin-top: 3.5rem;
+      padding: 0.55rem 1.5rem;
+      background: none;
+      border: 1px solid rgba(233, 230, 223, 0.22);
+      border-radius: 999px;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 1.05rem;
+      letter-spacing: 0.14em;
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity var(--fade) ease, visibility var(--fade), color 300ms, border-color 300ms;
+    }
+    #restart.show { opacity: 1; visibility: visible; }
+    #restart:hover,
+    #restart:focus-visible { color: var(--text); border-color: rgba(233, 230, 223, 0.5); outline: none; }
+    .fading { opacity: 0; }
+
+    @media (prefers-reduced-motion: reduce) {
+      :root { --fade: 1ms; }
+      .word { transform: none; }
+    }
+  </style>
 </head>
 <body>
-  <h1>Emotion Wheel</h1>
-  <p>Coming soon.</p>
+  <main>
+    <h1 id="heading" aria-live="polite">I’m feeling…</h1>
+    <div id="choices" role="group" aria-label="Choose a feeling"></div>
+    <button id="restart" type="button">start again</button>
+  </main>
+
+  <script src="emotions.js"></script>
+  <script>
+    (function () {
+      var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var FADE = reduceMotion ? 0 : 700;
+      var STAGGER = reduceMotion ? 0 : 55;
+
+      var heading = document.getElementById("heading");
+      var choices = document.getElementById("choices");
+      var restart = document.getElementById("restart");
+
+      // Turn the data into one uniform tree: { name, color, children: [] }
+      function build(name, color, children) {
+        var node = { name: name, color: color, children: [] };
+        if (Array.isArray(children)) {
+          node.children = children.map(function (c) {
+            return typeof c === "string" ? build(c, color, null) : build(c.name, c.color, c.children);
+          });
+        } else if (children) {
+          node.children = Object.keys(children).map(function (k) {
+            return build(k, color, children[k]);
+          });
+        }
+        return node;
+      }
+      var root = build(null, null, WHEEL);
+
+      var busy = false;
+
+      function setHeading(node) {
+        heading.textContent = "";
+        heading.append("I’m feeling");
+        if (!node.name) { heading.append("…"); return; }
+        var span = document.createElement("span");
+        span.className = "feeling";
+        span.style.setProperty("--c", node.color);
+        span.textContent = node.name;
+        heading.append(" ", span, node.children.length ? "…" : ".");
+      }
+
+      function show(node, moveFocus) {
+        setHeading(node);
+        heading.classList.remove("fading");
+        choices.textContent = "";
+        restart.classList.toggle("show", !!node.name);
+
+        node.children.forEach(function (child, i) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "word";
+          b.textContent = child.name;
+          b.style.setProperty("--c", child.color);
+          b.addEventListener("click", function () { choose(child); });
+          choices.appendChild(b);
+          setTimeout(function () { b.classList.add("in"); }, 30 + i * STAGGER);
+        });
+
+        if (moveFocus) {
+          var first = choices.querySelector(".word");
+          (first || restart).focus({ preventScroll: true });
+        }
+        setTimeout(function () { busy = false; }, FADE);
+      }
+
+      function transition(next) {
+        if (busy) return;
+        busy = true;
+        var keyboard = document.activeElement && document.activeElement.tagName === "BUTTON"
+          && document.activeElement.matches(":focus-visible");
+        choices.querySelectorAll(".word").forEach(function (b) { b.classList.add("out"); });
+        heading.classList.add("fading");
+        setTimeout(function () { show(next, keyboard); }, FADE);
+      }
+
+      function choose(node) { transition(node); }
+      restart.addEventListener("click", function () { transition(root); });
+
+      show(root, false);
+    })();
+  </script>
 </body>
 </html>
